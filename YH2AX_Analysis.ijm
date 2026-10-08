@@ -68,13 +68,7 @@ macro "YH2AX Analysis" {
     run("Set Measurements...",
         "area mean min integrated redirect=[" + yh2axStack + "] decimal=3");
 
-    fociCsv = File.getDirectory(yh2axPath) + "YH2AX_foci.csv";
-    if (!File.exists(fociCsv))
-        File.append("Image,Slice,Foci No.,Area,Mean,Min,Max,IntDen,RawIntDen", fociCsv);
-
-    // On-screen table with the same per-focus rows (select all, copy, paste into Excel)
-    Table.create("YH2AX_Foci");
-
+    run("Clear Results");
     n = nSlices;
     sumCount = 0;
     sumArea = 0;
@@ -82,60 +76,64 @@ macro "YH2AX Analysis" {
     for (i = 1; i <= n; i++) {
         selectWindow(binaryStack);
         setSlice(i);
-        run("Analyze Particles...", "size=0.01-Infinity display clear");
 
-        sliceCount = nResults;
-        sliceArea = 0;
-        for (r = 0; r < sliceCount; r++) {
-            a = getResult("Area", r);
-            sliceArea += a;
+        before = nResults;
+        // "display" without "clear": rows accumulate across slices
+        run("Analyze Particles...", "size=0.01-Infinity display");
+        after = nResults;
 
-            row = Table.size("YH2AX_Foci");
-            Table.set("Image", row, imageName, "YH2AX_Foci");
-            Table.set("Slice", row, i, "YH2AX_Foci");
-            Table.set("Foci No.", row, r + 1, "YH2AX_Foci");
-            Table.set("Area", row, a, "YH2AX_Foci");
-            Table.set("Mean", row, getResult("Mean", r), "YH2AX_Foci");
-            Table.set("Min", row, getResult("Min", r), "YH2AX_Foci");
-            Table.set("Max", row, getResult("Max", r), "YH2AX_Foci");
-            Table.set("IntDen", row, getResult("IntDen", r), "YH2AX_Foci");
-            Table.set("RawIntDen", row, getResult("RawIntDen", r), "YH2AX_Foci");
-
-            File.append(imageName + "," + i + "," + (r + 1) + "," + a + ","
-                        + getResult("Mean", r) + "," + getResult("Min", r) + ","
-                        + getResult("Max", r) + "," + getResult("IntDen", r) + ","
-                        + getResult("RawIntDen", r), fociCsv);
+        for (r = before; r < after; r++) {
+            setResult("Slice", r, i);
+            setResult("Foci No.", r, r - before + 1);
+            sumArea += getResult("Area", r);
         }
-
-        sumCount += sliceCount;
-        sumArea += sliceArea;
+        sumCount += (after - before);
     }
 
-    Table.update("YH2AX_Foci");
+    // ---------- Rebuild the Results table in the order you want ----------
+    total = nResults;
+    sl = newArray(total);  fn = newArray(total);  ar = newArray(total);
+    me = newArray(total);  mi = newArray(total);  mx = newArray(total);
+    id = newArray(total);  rw = newArray(total);
 
-    // Results window only holds the last slice; close it to avoid confusion
-    if (isOpen("Results")) {
-        selectWindow("Results");
-        run("Close");
+    for (k = 0; k < total; k++) {
+        sl[k] = getResult("Slice", k);
+        fn[k] = getResult("Foci No.", k);
+        ar[k] = getResult("Area", k);
+        me[k] = getResult("Mean", k);
+        mi[k] = getResult("Min", k);
+        mx[k] = getResult("Max", k);
+        id[k] = getResult("IntDen", k);
+        rw[k] = getResult("RawIntDen", k);
     }
+
+    run("Clear Results");
+    for (k = 0; k < total; k++) {
+        setResult("Image", k, imageName);
+        setResult("Slice", k, sl[k]);
+        setResult("Foci No.", k, fn[k]);
+        setResult("Area", k, ar[k]);
+        setResult("Mean", k, me[k]);
+        setResult("Min", k, mi[k]);
+        setResult("Max", k, mx[k]);
+        setResult("IntDen", k, id[k]);
+        setResult("RawIntDen", k, rw[k]);
+    }
+    updateResults();   // the "Results" window now holds every focus; copy/paste it into Excel
+
+    // ---------- Per-focus CSV (appended across images) ----------
+    fociCsv = File.getDirectory(yh2axPath) + "YH2AX_foci.csv";
+    if (!File.exists(fociCsv))
+        File.append("Image,Slice,Foci No.,Area,Mean,Min,Max,IntDen,RawIntDen", fociCsv);
+    for (k = 0; k < total; k++)
+        File.append(imageName + "," + sl[k] + "," + fn[k] + "," + ar[k] + ","
+                    + me[k] + "," + mi[k] + "," + mx[k] + "," + id[k] + "," + rw[k], fociCsv);
 
     // Divide by however many slices were analysed
     meanCount = sumCount / n;
     meanArea  = sumArea  / n;
 
-    // ---------- Summary table ----------
-    Table.create("YH2AX_Summary");
-    Table.set("Image", 0, imageName);
-    Table.set("Nuclear threshold lower", 0, nucLower);
-    Table.set("Nuclear threshold upper", 0, nucUpper);
-    Table.set("YH2AX threshold lower", 0, fociLower);
-    Table.set("YH2AX threshold upper", 0, fociUpper);
-    Table.set("Slices analysed", 0, n);
-    Table.set("Mean foci count per slice", 0, meanCount);
-    Table.set("Mean foci area per slice", 0, meanArea);
-    Table.update("YH2AX_Summary");
-
-    // ---------- Append to a running CSV (one row per image) ----------
+    // ---------- Per-image summary CSV (appended across images) ----------
     csvPath = File.getDirectory(yh2axPath) + "YH2AX_results.csv";
     if (!File.exists(csvPath))
         File.append("Image,NucLower,NucUpper,YH2AXLower,YH2AXUpper,Slices,MeanFociCount,MeanFociArea", csvPath);
@@ -143,10 +141,10 @@ macro "YH2AX Analysis" {
                 + fociLower + "," + fociUpper + "," + n + ","
                 + meanCount + "," + meanArea, csvPath);
 
-    print("Per-image summary: " + csvPath);
-    print("Per-focus data: " + fociCsv);
-    print("Slices analysed: " + n);
-    print("YH2AX threshold: " + fociLower + " - " + fociUpper);
-    print("Mean foci count per slice: " + meanCount);
-    print("Mean foci area per slice: " + meanArea);
+    // ---------- Log: summary, tab-separated so it pastes into Excel ----------
+    print("Image\tNucLower\tNucUpper\tYH2AXLower\tYH2AXUpper\tSlices\tMeanFociCount\tMeanFociArea");
+    print(imageName + "\t" + nucLower + "\t" + nucUpper + "\t" + fociLower + "\t"
+          + fociUpper + "\t" + n + "\t" + meanCount + "\t" + meanArea);
+    print("Per-focus CSV: " + fociCsv);
+    print("Per-image CSV: " + csvPath);
 }
