@@ -84,62 +84,60 @@ macro "YH2AX Analysis" {
     sumCount = 0;
     sumArea = 0;
 
+    // One array per column; every focus from every slice is appended to these
+    aSlice = newArray(0);  aNo  = newArray(0);  aArea = newArray(0);
+    aMean  = newArray(0);  aMin = newArray(0);  aMax  = newArray(0);
+    aInt   = newArray(0);  aRaw = newArray(0);
+
     for (i = 1; i <= n; i++) {
         selectWindow(binaryStack);
         setSlice(i);
 
-        print("[7] Analysing slice " + i + " of " + n);
-        before = nResults;
-        // "display" without "clear": rows accumulate across slices
-        run("Analyze Particles...", "size=0.01-Infinity display");
-        after = nResults;
+        // "clear": Results holds only this slice, read it straight away
+        run("Analyze Particles...", "size=0.01-Infinity display clear");
+        cnt = nResults;
+        print("[7] Slice " + i + " of " + n + ": " + cnt + " foci");
 
-        for (r = before; r < after; r++) {
-            setResult("Slice", r, i);
-            setResult("Foci No.", r, r - before + 1);
-            sumArea += getResult("Area", r);
+        for (r = 0; r < cnt; r++) {
+            a = getResult("Area", r);
+            aSlice = Array.concat(aSlice, i);
+            aNo    = Array.concat(aNo, r + 1);
+            aArea  = Array.concat(aArea, a);
+            aMean  = Array.concat(aMean, getResult("Mean", r));
+            aMin   = Array.concat(aMin, getResult("Min", r));
+            aMax   = Array.concat(aMax, getResult("Max", r));
+            aInt   = Array.concat(aInt, getResult("IntDen", r));
+            aRaw   = Array.concat(aRaw, getResult("RawIntDen", r));
+            sumArea += a;
         }
-        sumCount += (after - before);
+        sumCount += cnt;
     }
+    total = sumCount;
+    print("[8] Measured " + total + " foci in total");
 
-    // ---------- Rebuild the Results table in the order you want ----------
-    total = nResults;
-    sl = newArray(total);  fn = newArray(total);  ar = newArray(total);
-    me = newArray(total);  mi = newArray(total);  mx = newArray(total);
-    id = newArray(total);  rw = newArray(total);
-
-    for (k = 0; k < total; k++) {
-        sl[k] = getResult("Slice", k);
-        fn[k] = getResult("Foci No.", k);
-        ar[k] = getResult("Area", k);
-        me[k] = getResult("Mean", k);
-        mi[k] = getResult("Min", k);
-        mx[k] = getResult("Max", k);
-        id[k] = getResult("IntDen", k);
-        rw[k] = getResult("RawIntDen", k);
-    }
-
+    // ---------- Build the final Results table in the order you want ----------
     run("Clear Results");
     for (k = 0; k < total; k++) {
         setResult("Image", k, imageName);
-        setResult("Slice", k, sl[k]);
-        setResult("Foci No.", k, fn[k]);
-        setResult("Area", k, ar[k]);
-        setResult("Mean", k, me[k]);
-        setResult("Min", k, mi[k]);
-        setResult("Max", k, mx[k]);
-        setResult("IntDen", k, id[k]);
-        setResult("RawIntDen", k, rw[k]);
+        setResult("Slice", k, aSlice[k]);
+        setResult("Foci No.", k, aNo[k]);
+        setResult("Area", k, aArea[k]);
+        setResult("Mean", k, aMean[k]);
+        setResult("Min", k, aMin[k]);
+        setResult("Max", k, aMax[k]);
+        setResult("IntDen", k, aInt[k]);
+        setResult("RawIntDen", k, aRaw[k]);
     }
     updateResults();   // the "Results" window now holds every focus; copy/paste it into Excel
+    print("[9] Results table built");
 
     // ---------- Per-focus CSV (appended across images) ----------
     fociCsv = File.getDirectory(yh2axPath) + "YH2AX_foci.csv";
     if (!File.exists(fociCsv))
         File.append("Image,Slice,Foci No.,Area,Mean,Min,Max,IntDen,RawIntDen", fociCsv);
     for (k = 0; k < total; k++)
-        File.append(imageName + "," + sl[k] + "," + fn[k] + "," + ar[k] + ","
-                    + me[k] + "," + mi[k] + "," + mx[k] + "," + id[k] + "," + rw[k], fociCsv);
+        File.append(imageName + "," + aSlice[k] + "," + aNo[k] + "," + aArea[k] + ","
+                    + aMean[k] + "," + aMin[k] + "," + aMax[k] + "," + aInt[k] + "," + aRaw[k], fociCsv);
 
     // Divide by however many slices were analysed
     meanCount = sumCount / n;
@@ -159,4 +157,5 @@ macro "YH2AX Analysis" {
           + fociUpper + "\t" + n + "\t" + meanCount + "\t" + meanArea);
     print("Per-focus CSV: " + fociCsv);
     print("Per-image CSV: " + csvPath);
+    print("[10] Done");
 }
