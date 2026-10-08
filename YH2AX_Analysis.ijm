@@ -72,6 +72,9 @@ macro "YH2AX Analysis" {
     if (!File.exists(fociCsv))
         File.append("Image,Slice,Foci No.,Area,Mean,Min,Max,IntDen,RawIntDen", fociCsv);
 
+    // On-screen table with the same per-focus rows (select all, copy, paste into Excel)
+    Table.create("YH2AX_Foci");
+
     n = nSlices;
     sumCount = 0;
     sumArea = 0;
@@ -86,6 +89,18 @@ macro "YH2AX Analysis" {
         for (r = 0; r < sliceCount; r++) {
             a = getResult("Area", r);
             sliceArea += a;
+
+            row = Table.size("YH2AX_Foci");
+            Table.set("Image", row, imageName, "YH2AX_Foci");
+            Table.set("Slice", row, i, "YH2AX_Foci");
+            Table.set("Foci No.", row, r + 1, "YH2AX_Foci");
+            Table.set("Area", row, a, "YH2AX_Foci");
+            Table.set("Mean", row, getResult("Mean", r), "YH2AX_Foci");
+            Table.set("Min", row, getResult("Min", r), "YH2AX_Foci");
+            Table.set("Max", row, getResult("Max", r), "YH2AX_Foci");
+            Table.set("IntDen", row, getResult("IntDen", r), "YH2AX_Foci");
+            Table.set("RawIntDen", row, getResult("RawIntDen", r), "YH2AX_Foci");
+
             File.append(imageName + "," + i + "," + (r + 1) + "," + a + ","
                         + getResult("Mean", r) + "," + getResult("Min", r) + ","
                         + getResult("Max", r) + "," + getResult("IntDen", r) + ","
@@ -94,6 +109,14 @@ macro "YH2AX Analysis" {
 
         sumCount += sliceCount;
         sumArea += sliceArea;
+    }
+
+    Table.update("YH2AX_Foci");
+
+    // Results window only holds the last slice; close it to avoid confusion
+    if (isOpen("Results")) {
+        selectWindow("Results");
+        run("Close");
     }
 
     // Divide by however many slices were analysed
