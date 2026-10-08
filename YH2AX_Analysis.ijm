@@ -34,6 +34,7 @@ macro "YH2AX Analysis" {
 
     open(yh2axPath);
     yh2axStack = getTitle();
+    imageName = File.getName(yh2axPath);
 
     // ---------- Check XY dimensions ----------
     getDimensions(yWidth, yHeight, yChannels, ySlices, yFrames);
@@ -54,12 +55,23 @@ macro "YH2AX Analysis" {
     if (fociLower == -1)
         exit("No YH2AX threshold was set.");
 
+    // Binary copy for particle detection; the intensity stack stays untouched
+    run("Duplicate...", "title=YH2AX_binary duplicate");
+    binaryStack = getTitle();
+    setThreshold(fociLower, fociUpper);
     setOption("BlackBackground", true);
     run("Convert to Mask", "method=Default background=Dark black");
-    binaryStack = getTitle();
 
-    // ---------- 11: Analyze each slice, then average ----------
-    run("Set Measurements...", "area redirect=None decimal=3");
+    // ---------- 11: Measure each focus, slice by slice ----------
+    // Area/Mean/Min/Max/IntDen/RawIntDen are measured on the raw YH2AX
+    // intensities (redirect), not on the binary image.
+    run("Set Measurements...",
+        "area mean min integrated redirect=[" + yh2axStack + "] decimal=3");
+
+    fociCsv = File.getDirectory(yh2axPath) + "YH2AX_foci.csv";
+    if (!File.exists(fociCsv))
+        File.append("Image,Slice,Foci No.,Area,Mean,Min,Max,IntDen,RawIntDen", fociCsv);
+
     n = nSlices;
     sumCount = 0;
     sumArea = 0;
@@ -71,8 +83,14 @@ macro "YH2AX Analysis" {
 
         sliceCount = nResults;
         sliceArea = 0;
-        for (r = 0; r < sliceCount; r++)
-            sliceArea += getResult("Area", r);
+        for (r = 0; r < sliceCount; r++) {
+            a = getResult("Area", r);
+            sliceArea += a;
+            File.append(imageName + "," + i + "," + (r + 1) + "," + a + ","
+                        + getResult("Mean", r) + "," + getResult("Min", r) + ","
+                        + getResult("Max", r) + "," + getResult("IntDen", r) + ","
+                        + getResult("RawIntDen", r), fociCsv);
+        }
 
         sumCount += sliceCount;
         sumArea += sliceArea;
@@ -84,7 +102,7 @@ macro "YH2AX Analysis" {
 
     // ---------- Summary table ----------
     Table.create("YH2AX_Summary");
-    Table.set("Image", 0, File.getName(yh2axPath));
+    Table.set("Image", 0, imageName);
     Table.set("Nuclear threshold lower", 0, nucLower);
     Table.set("Nuclear threshold upper", 0, nucUpper);
     Table.set("YH2AX threshold lower", 0, fociLower);
@@ -98,11 +116,12 @@ macro "YH2AX Analysis" {
     csvPath = File.getDirectory(yh2axPath) + "YH2AX_results.csv";
     if (!File.exists(csvPath))
         File.append("Image,NucLower,NucUpper,YH2AXLower,YH2AXUpper,Slices,MeanFociCount,MeanFociArea", csvPath);
-    File.append(File.getName(yh2axPath) + "," + nucLower + "," + nucUpper + ","
+    File.append(imageName + "," + nucLower + "," + nucUpper + ","
                 + fociLower + "," + fociUpper + "," + n + ","
                 + meanCount + "," + meanArea, csvPath);
 
-    print("Saved to: " + csvPath);
+    print("Per-image summary: " + csvPath);
+    print("Per-focus data: " + fociCsv);
     print("Slices analysed: " + n);
     print("YH2AX threshold: " + fociLower + " - " + fociUpper);
     print("Mean foci count per slice: " + meanCount);
