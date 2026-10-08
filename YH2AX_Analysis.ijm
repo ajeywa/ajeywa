@@ -1,5 +1,7 @@
 macro "YH2AX Analysis" {
 
+    print("[1] Macro started");
+
     // ---------- 1–3: Open ch00 and Z-project ----------
     ch00Path = File.openDialog("Select the ch00 nuclear stack");
     if (ch00Path == "")
@@ -27,6 +29,8 @@ macro "YH2AX Analysis" {
     run("Divide...", "value=255");
     setMinAndMax(0, 1);
 
+    print("[2] Nuclear mask built. Nuclear threshold: " + nucLower + " - " + nucUpper);
+
     // ---------- 7–8: Open YH2AX stack ----------
     yh2axPath = File.openDialog("Select the ch02 / YH2AX stack");
     if (yh2axPath == "")
@@ -46,14 +50,17 @@ macro "YH2AX Analysis" {
     // ---------- 9: Mask the YH2AX stack ----------
     imageCalculator("Multiply create stack", yh2axStack, nuclearMask);
     maskedYH2AX = getTitle();
+    print("[3] YH2AX stack opened and masked: " + maskedYH2AX);
 
     // ---------- 10: MANUAL YH2AX threshold (recorded) ----------
     selectWindow(maskedYH2AX);
     run("Threshold...");
     waitForUser("Set the YH2AX threshold, then click OK here.");
+    print("[4] OK clicked on YH2AX threshold. Active image: " + getTitle());
     getThreshold(fociLower, fociUpper);
+    print("[5] YH2AX threshold read: " + fociLower + " - " + fociUpper);
     if (fociLower == -1)
-        exit("No YH2AX threshold was set.");
+        exit("No YH2AX threshold was set. Set it and leave the Threshold window on 'Set'/'Auto' (do NOT click Apply).");
 
     // Binary copy for particle detection; the intensity stack stays untouched
     run("Duplicate...", "title=YH2AX_binary duplicate");
@@ -61,6 +68,7 @@ macro "YH2AX Analysis" {
     setThreshold(fociLower, fociUpper);
     setOption("BlackBackground", true);
     run("Convert to Mask", "method=Default background=Dark black");
+    print("[6] Binary stack created: " + binaryStack + " (" + nSlices + " slices)");
 
     // ---------- 11: Measure each focus, slice by slice ----------
     // Area/Mean/Min/Max/IntDen/RawIntDen are measured on the raw YH2AX
@@ -77,6 +85,7 @@ macro "YH2AX Analysis" {
         selectWindow(binaryStack);
         setSlice(i);
 
+        print("[7] Analysing slice " + i + " of " + n);
         before = nResults;
         // "display" without "clear": rows accumulate across slices
         run("Analyze Particles...", "size=0.01-Infinity display");
