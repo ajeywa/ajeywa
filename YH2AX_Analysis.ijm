@@ -73,10 +73,13 @@ macro "YH2AX Analysis" {
     // ---------- 11: Measure each focus, slice by slice ----------
     // Area/Mean/Min/Max/IntDen/RawIntDen are measured on the raw YH2AX
     // intensities (redirect), not on the binary image.
+    print("[6a] Setting measurements, redirect = " + yh2axStack);
     run("Set Measurements...",
         "area mean min integrated redirect=[" + yh2axStack + "] decimal=3");
+    print("[6b] Measurements set");
 
     run("Clear Results");
+    print("[6c] Results cleared");
     n = nSlices;
     sumCount = 0;
     sumArea = 0;
