@@ -131,7 +131,7 @@ macro "YH2AX Analysis" {
     // ---------- Per-image summary CSV (appended across images) ----------
     csvPath = File.getDirectory(yh2axPath) + "YH2AX_results.csv";
     if (!File.exists(csvPath))
-        File.append("Image,NucLower,NucUpper,YH2AXLower,YH2AXUpper,Slices,MeanFociCount,MeanFociArea", csvPath);
+        File.append("Image,Nuclear threshold lower,Nuclear threshold upper,YH2AX threshold lower,YH2AX threshold upper,Slices analysed,Mean foci count per slice,Mean foci area per slice", csvPath);
     File.append(imageName + "," + nucLower + "," + nucUpper + ","
                 + fociLower + "," + fociUpper + "," + n + ","
                 + meanCount + "," + meanArea, csvPath);
@@ -149,7 +149,7 @@ macro "YH2AX Analysis" {
     Table.update("YH2AX_Summary");
 
     // ---------- Log: summary, tab-separated so it pastes into Excel ----------
-    print("Image\tNucLower\tNucUpper\tYH2AXLower\tYH2AXUpper\tSlices\tMeanFociCount\tMeanFociArea");
+    print("Image\tNuclear threshold lower\tNuclear threshold upper\tYH2AX threshold lower\tYH2AX threshold upper\tSlices analysed\tMean foci count per slice\tMean foci area per slice");
     print(imageName + "\t" + nucLower + "\t" + nucUpper + "\t" + fociLower + "\t"
           + fociUpper + "\t" + n + "\t" + meanCount + "\t" + meanArea);
     print("Per-focus CSV: " + fociCsv);
