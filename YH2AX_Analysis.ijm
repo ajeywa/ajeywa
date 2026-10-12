@@ -212,4 +212,9 @@ macro "YH2AX Analysis" {
           + fociUpper + "\t" + n + "\t" + meanCount + "\t" + meanArea);
     print("Per-focus CSV: " + fociCsv);
     print("Per-image CSV: " + csvPath);
+    print("DONE: " + total + " foci in " + n + " slices.");
+
+    // Bring the per-focus table to the front
+    if (isOpen("Results"))
+        selectWindow("Results");
 }
