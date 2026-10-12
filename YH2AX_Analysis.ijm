@@ -3,16 +3,19 @@
 // Leave "" to save YH2AX_results.csv next to each YH2AX image instead.
 var masterCsv = "";
 
-// Append one line to a text file, making sure it starts on a new line even if
-// the file was re-saved by Excel without a trailing newline.
-function appendLine(line, path) {
+// If a text file was re-saved by Excel without a trailing newline, add one.
+// (openAsString always ends with a newline; a shorter real file means it had none.)
+function fixTrailingNewline(path) {
     if (File.exists(path)) {
-        // openAsString always ends with a newline; if the real file is shorter,
-        // it had none, so rewrite it with one before appending.
         txt = File.openAsString(path);
         if (File.length(path) < lengthOf(txt))
             File.saveString(txt, path);
     }
+}
+
+// Append one line to a text file, starting on a new line.
+function appendLine(line, path) {
+    fixTrailingNewline(path);
     File.append(line, path);
 }
 
@@ -93,7 +96,8 @@ macro "YH2AX Analysis" {
     sumCount = 0;
     sumArea = 0;
 
-    // One array per column; every focus from every slice is appended to these
+    // One array per column; each slice's foci are added in one go (fast even
+    // when there are thousands of foci)
     aSlice = newArray(0);  aNo  = newArray(0);  aArea = newArray(0);
     aMean  = newArray(0);  aMin = newArray(0);  aMax  = newArray(0);
     aInt   = newArray(0);  aRaw = newArray(0);
@@ -101,26 +105,41 @@ macro "YH2AX Analysis" {
     for (i = 1; i <= n; i++) {
         selectWindow(binaryStack);
         setSlice(i);
+        showStatus("YH2AX: analysing slice " + i + " of " + n);
 
         // "clear": Results holds only this slice, read it straight away
         run("Analyze Particles...", "size=0.01-Infinity display clear");
         cnt = nResults;
 
-        for (r = 0; r < cnt; r++) {
-            a = getResult("Area", r);
-            aSlice = Array.concat(aSlice, i);
-            aNo    = Array.concat(aNo, r + 1);
-            aArea  = Array.concat(aArea, a);
-            aMean  = Array.concat(aMean, getResult("Mean", r));
-            aMin   = Array.concat(aMin, getResult("Min", r));
-            aMax   = Array.concat(aMax, getResult("Max", r));
-            aInt   = Array.concat(aInt, getResult("IntDen", r));
-            aRaw   = Array.concat(aRaw, getResult("RawIntDen", r));
-            sumArea += a;
+        if (cnt > 0) {
+            sSlice = newArray(cnt);  sNo  = newArray(cnt);  sArea = newArray(cnt);
+            sMean  = newArray(cnt);  sMin = newArray(cnt);  sMax  = newArray(cnt);
+            sInt   = newArray(cnt);  sRaw = newArray(cnt);
+            for (r = 0; r < cnt; r++) {
+                sSlice[r] = i;
+                sNo[r]    = r + 1;
+                sArea[r]  = getResult("Area", r);
+                sMean[r]  = getResult("Mean", r);
+                sMin[r]   = getResult("Min", r);
+                sMax[r]   = getResult("Max", r);
+                sInt[r]   = getResult("IntDen", r);
+                sRaw[r]   = getResult("RawIntDen", r);
+                sumArea  += sArea[r];
+            }
+            aSlice = Array.concat(aSlice, sSlice);  aNo   = Array.concat(aNo, sNo);
+            aArea  = Array.concat(aArea, sArea);    aMean = Array.concat(aMean, sMean);
+            aMin   = Array.concat(aMin, sMin);      aMax  = Array.concat(aMax, sMax);
+            aInt   = Array.concat(aInt, sInt);      aRaw  = Array.concat(aRaw, sRaw);
         }
         sumCount += cnt;
     }
     total = sumCount;
+
+    // Thousands of 1-pixel "foci" means the threshold is picking up background
+    if (total > 5000) {
+        if (!getBoolean("Found " + total + " foci - the YH2AX threshold is probably too low (background noise).\nContinue anyway?"))
+            exit("Stopped. Run again and set a higher YH2AX lower threshold.");
+    }
 
     // ---------- Build the final Results table in the order you want ----------
     run("Clear Results");
@@ -144,11 +163,25 @@ macro "YH2AX Analysis" {
         csvPath = File.getDirectory(yh2axPath) + "YH2AX_results.csv";
 
     fociCsv = File.getDirectory(csvPath) + "YH2AX_foci.csv";
+    fixTrailingNewline(fociCsv);
     if (!File.exists(fociCsv))
-        appendLine("Image,Slice,Foci No.,Area,Mean,Min,Max,IntDen,RawIntDen", fociCsv);
-    for (k = 0; k < total; k++)
-        appendLine(imageName + "," + aSlice[k] + "," + aNo[k] + "," + aArea[k] + ","
-                    + aMean[k] + "," + aMin[k] + "," + aMax[k] + "," + aInt[k] + "," + aRaw[k], fociCsv);
+        File.append("Image,Slice,Foci No.,Area,Mean,Min,Max,IntDen,RawIntDen", fociCsv);
+    chunk = "";
+    inChunk = 0;
+    for (k = 0; k < total; k++) {
+        if (inChunk > 0)
+            chunk = chunk + "\n";
+        chunk = chunk + imageName + "," + aSlice[k] + "," + aNo[k] + "," + aArea[k] + ","
+                + aMean[k] + "," + aMin[k] + "," + aMax[k] + "," + aInt[k] + "," + aRaw[k];
+        inChunk++;
+        if (inChunk == 500) {
+            File.append(chunk, fociCsv);
+            chunk = "";
+            inChunk = 0;
+        }
+    }
+    if (inChunk > 0)
+        File.append(chunk, fociCsv);
 
     // Divide by however many slices were analysed
     meanCount = sumCount / n;
