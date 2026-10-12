@@ -1,7 +1,7 @@
 // Optional: type a full path here to ALWAYS append summary rows to that one file,
 // whichever folder your images are in, e.g. "/Users/you/Documents/Threshold Comparisons.csv".
 // Leave "" to save YH2AX_results.csv next to each YH2AX image instead.
-var masterCsv = "/Volumes/EXTERNAL_US/PHYS960 Big Boi Files/Threshold Comparisons.csv";
+var masterCsv = "";
 
 // Append one line to a text file, making sure it starts on a new line even if
 // the file was re-saved by Excel without a trailing newline.
