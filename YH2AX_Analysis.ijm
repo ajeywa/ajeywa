@@ -28,6 +28,7 @@ macro "YH2AX Analysis" {
         exit("No ch00 image selected.");
 
     open(ch00Path);
+    print("STEP 1: opened ch00 = " + getTitle() + " (" + nSlices + " slices, " + bitDepth() + "-bit)");
     if (nSlices > 1)
         run("Z Project...", "projection=[Sum Slices]");
 
@@ -37,6 +38,7 @@ macro "YH2AX Analysis" {
     getThreshold(nucLower, nucUpper);
     if (nucLower == -1)
         exit("No nuclear threshold was set.");
+    print("STEP 2: nuclear threshold = " + nucLower + " to " + nucUpper);
 
     // ---------- 5–6: Binary + nuclear mask ----------
     setOption("BlackBackground", true);
@@ -48,6 +50,7 @@ macro "YH2AX Analysis" {
     // 0/255 -> 0/1 so it can be multiplied (avoids 16-bit AND truncation)
     run("Divide...", "value=255");
     setMinAndMax(0, 1);
+    print("STEP 3: nuclear mask built = " + nuclearMask);
 
 
     // ---------- 7–8: Open YH2AX stack ----------
@@ -58,6 +61,7 @@ macro "YH2AX Analysis" {
     open(yh2axPath);
     yh2axStack = getTitle();
     imageName = File.getName(yh2axPath);
+    print("STEP 4: opened YH2AX = " + yh2axStack + " (" + nSlices + " slices, " + bitDepth() + "-bit)");
 
     // ---------- Check XY dimensions ----------
     getDimensions(yWidth, yHeight, yChannels, ySlices, yFrames);
@@ -69,6 +73,7 @@ macro "YH2AX Analysis" {
     // ---------- 9: Mask the YH2AX stack ----------
     imageCalculator("Multiply create stack", yh2axStack, nuclearMask);
     maskedYH2AX = getTitle();
+    print("STEP 5: masked YH2AX stack = " + maskedYH2AX);
 
     // ---------- 10: MANUAL YH2AX threshold (recorded) ----------
     selectWindow(maskedYH2AX);
@@ -77,6 +82,7 @@ macro "YH2AX Analysis" {
     getThreshold(fociLower, fociUpper);
     if (fociLower == -1)
         exit("No YH2AX threshold was set. Set it and leave the Threshold window on 'Set'/'Auto' (do NOT click Apply).");
+    print("STEP 6: YH2AX threshold = " + fociLower + " to " + fociUpper);
 
     // Binary copy for particle detection; the intensity stack stays untouched
     run("Duplicate...", "title=YH2AX_binary duplicate");
@@ -84,6 +90,7 @@ macro "YH2AX Analysis" {
     setThreshold(fociLower, fociUpper);
     setOption("BlackBackground", true);
     run("Convert to Mask", "method=Default background=Dark black");
+    print("STEP 7: binary stack built = " + binaryStack + " (" + nSlices + " slices)");
 
     // ---------- 11: Measure each focus, slice by slice ----------
     // Area/Mean/Min/Max/IntDen/RawIntDen are measured on the raw YH2AX
@@ -110,6 +117,7 @@ macro "YH2AX Analysis" {
         // "clear": Results holds only this slice, read it straight away
         run("Analyze Particles...", "size=0.01-Infinity display clear");
         cnt = nResults;
+        print("STEP 8: slice " + i + " of " + n + ": " + cnt + " foci");
 
         if (cnt > 0) {
             sSlice = newArray(cnt);  sNo  = newArray(cnt);  sArea = newArray(cnt);
