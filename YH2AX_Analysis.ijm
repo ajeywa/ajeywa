@@ -1,6 +1,5 @@
 macro "YH2AX Analysis" {
 
-    print("[1] Macro started");
 
     // ---------- 1–3: Open ch00 and Z-project ----------
     ch00Path = File.openDialog("Select the ch00 nuclear stack");
@@ -29,7 +28,6 @@ macro "YH2AX Analysis" {
     run("Divide...", "value=255");
     setMinAndMax(0, 1);
 
-    print("[2] Nuclear mask built. Nuclear threshold: " + nucLower + " - " + nucUpper);
 
     // ---------- 7–8: Open YH2AX stack ----------
     yh2axPath = File.openDialog("Select the ch02 / YH2AX stack");
@@ -50,15 +48,12 @@ macro "YH2AX Analysis" {
     // ---------- 9: Mask the YH2AX stack ----------
     imageCalculator("Multiply create stack", yh2axStack, nuclearMask);
     maskedYH2AX = getTitle();
-    print("[3] YH2AX stack opened and masked: " + maskedYH2AX);
 
     // ---------- 10: MANUAL YH2AX threshold (recorded) ----------
     selectWindow(maskedYH2AX);
     run("Threshold...");
     waitForUser("Set the YH2AX threshold, then click OK here.");
-    print("[4] OK clicked on YH2AX threshold. Active image: " + getTitle());
     getThreshold(fociLower, fociUpper);
-    print("[5] YH2AX threshold read: " + fociLower + " - " + fociUpper);
     if (fociLower == -1)
         exit("No YH2AX threshold was set. Set it and leave the Threshold window on 'Set'/'Auto' (do NOT click Apply).");
 
@@ -68,18 +63,14 @@ macro "YH2AX Analysis" {
     setThreshold(fociLower, fociUpper);
     setOption("BlackBackground", true);
     run("Convert to Mask", "method=Default background=Dark black");
-    print("[6] Binary stack created: " + binaryStack + " (" + nSlices + " slices)");
 
     // ---------- 11: Measure each focus, slice by slice ----------
     // Area/Mean/Min/Max/IntDen/RawIntDen are measured on the raw YH2AX
     // intensities (redirect), not on the binary image.
-    print("[6a] Setting measurements, redirect = " + yh2axStack);
     run("Set Measurements...",
         "area mean min integrated redirect=[" + yh2axStack + "] decimal=3");
-    print("[6b] Measurements set");
 
     run("Clear Results");
-    print("[6c] Results cleared");
     n = nSlices;
     sumCount = 0;
     sumArea = 0;
@@ -96,7 +87,6 @@ macro "YH2AX Analysis" {
         // "clear": Results holds only this slice, read it straight away
         run("Analyze Particles...", "size=0.01-Infinity display clear");
         cnt = nResults;
-        print("[7] Slice " + i + " of " + n + ": " + cnt + " foci");
 
         for (r = 0; r < cnt; r++) {
             a = getResult("Area", r);
@@ -113,7 +103,6 @@ macro "YH2AX Analysis" {
         sumCount += cnt;
     }
     total = sumCount;
-    print("[8] Measured " + total + " foci in total");
 
     // ---------- Build the final Results table in the order you want ----------
     run("Clear Results");
@@ -129,7 +118,6 @@ macro "YH2AX Analysis" {
         setResult("RawIntDen", k, aRaw[k]);
     }
     updateResults();   // the "Results" window now holds every focus; copy/paste it into Excel
-    print("[9] Results table built");
 
     // ---------- Per-focus CSV (appended across images) ----------
     fociCsv = File.getDirectory(yh2axPath) + "YH2AX_foci.csv";
@@ -157,5 +145,4 @@ macro "YH2AX Analysis" {
           + fociUpper + "\t" + n + "\t" + meanCount + "\t" + meanArea);
     print("Per-focus CSV: " + fociCsv);
     print("Per-image CSV: " + csvPath);
-    print("[10] Done");
 }
