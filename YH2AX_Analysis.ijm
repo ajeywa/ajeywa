@@ -1,3 +1,21 @@
+// Optional: type a full path here to ALWAYS append summary rows to that one file,
+// whichever folder your images are in, e.g. "/Users/you/Documents/Threshold Comparisons.csv".
+// Leave "" to save YH2AX_results.csv next to each YH2AX image instead.
+var masterCsv = "";
+
+// Append one line to a text file, making sure it starts on a new line even if
+// the file was re-saved by Excel without a trailing newline.
+function appendLine(line, path) {
+    if (File.exists(path)) {
+        // openAsString always ends with a newline; if the real file is shorter,
+        // it had none, so rewrite it with one before appending.
+        txt = File.openAsString(path);
+        if (File.length(path) < lengthOf(txt))
+            File.saveString(txt, path);
+    }
+    File.append(line, path);
+}
+
 macro "YH2AX Analysis" {
 
 
@@ -117,11 +135,19 @@ macro "YH2AX Analysis" {
     updateResults();   // the "Results" window now holds every focus; copy/paste it into Excel
 
     // ---------- Per-focus CSV (appended across images) ----------
-    fociCsv = File.getDirectory(yh2axPath) + "YH2AX_foci.csv";
+    // Summary CSV location: masterCsv (top of file) if set and its folder exists,
+    // otherwise beside the YH2AX image.
+    csvPath = masterCsv;
+    if (csvPath != "" && !File.exists(File.getDirectory(csvPath)))
+        csvPath = "";
+    if (csvPath == "")
+        csvPath = File.getDirectory(yh2axPath) + "YH2AX_results.csv";
+
+    fociCsv = File.getDirectory(csvPath) + "YH2AX_foci.csv";
     if (!File.exists(fociCsv))
-        File.append("Image,Slice,Foci No.,Area,Mean,Min,Max,IntDen,RawIntDen", fociCsv);
+        appendLine("Image,Slice,Foci No.,Area,Mean,Min,Max,IntDen,RawIntDen", fociCsv);
     for (k = 0; k < total; k++)
-        File.append(imageName + "," + aSlice[k] + "," + aNo[k] + "," + aArea[k] + ","
+        appendLine(imageName + "," + aSlice[k] + "," + aNo[k] + "," + aArea[k] + ","
                     + aMean[k] + "," + aMin[k] + "," + aMax[k] + "," + aInt[k] + "," + aRaw[k], fociCsv);
 
     // Divide by however many slices were analysed
@@ -129,10 +155,9 @@ macro "YH2AX Analysis" {
     meanArea  = sumArea  / n;
 
     // ---------- Per-image summary CSV (appended across images) ----------
-    csvPath = File.getDirectory(yh2axPath) + "YH2AX_results.csv";
     if (!File.exists(csvPath))
-        File.append("Image,Nuclear threshold lower,Nuclear threshold upper,YH2AX threshold lower,YH2AX threshold upper,Slices analysed,Mean foci count per slice,Mean foci area per slice", csvPath);
-    File.append(imageName + "," + nucLower + "," + nucUpper + ","
+        appendLine("Image,Nuclear threshold lower,Nuclear threshold upper,YH2AX threshold lower,YH2AX threshold upper,Slices analysed,Mean foci count per slice,Mean foci area per slice", csvPath);
+    appendLine(imageName + "," + nucLower + "," + nucUpper + ","
                 + fociLower + "," + fociUpper + "," + n + ","
                 + meanCount + "," + meanArea, csvPath);
 
