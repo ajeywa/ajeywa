@@ -107,9 +107,6 @@ macro "YH2AX Analysis" {
     // ---------- Build the final Results table in the order you want ----------
     run("Clear Results");
     for (k = 0; k < total; k++) {
-        setResult("Image", k, imageName);
-        setResult("Slice", k, aSlice[k]);
-        setResult("Foci No.", k, aNo[k]);
         setResult("Area", k, aArea[k]);
         setResult("Mean", k, aMean[k]);
         setResult("Min", k, aMin[k]);
@@ -138,6 +135,18 @@ macro "YH2AX Analysis" {
     File.append(imageName + "," + nucLower + "," + nucUpper + ","
                 + fociLower + "," + fociUpper + "," + n + ","
                 + meanCount + "," + meanArea, csvPath);
+
+    // ---------- Summary table: thresholds + averages (copy/paste into Excel) ----------
+    Table.create("YH2AX_Summary");
+    Table.set("Image", 0, imageName);
+    Table.set("Nuclear threshold lower", 0, nucLower);
+    Table.set("Nuclear threshold upper", 0, nucUpper);
+    Table.set("YH2AX threshold lower", 0, fociLower);
+    Table.set("YH2AX threshold upper", 0, fociUpper);
+    Table.set("Slices analysed", 0, n);
+    Table.set("Mean foci count per slice", 0, meanCount);
+    Table.set("Mean foci area per slice", 0, meanArea);
+    Table.update("YH2AX_Summary");
 
     // ---------- Log: summary, tab-separated so it pastes into Excel ----------
     print("Image\tNucLower\tNucUpper\tYH2AXLower\tYH2AXUpper\tSlices\tMeanFociCount\tMeanFociArea");
