@@ -1,15 +1,21 @@
-// YH2AX foci analysis - INTENSITY thresholding: foci are pixels between intensityLower and intensityUpper; no upper size limit.
+// YH2AX foci analysis - INTENSITY thresholding.
+// Foci are detected, then each focus is kept or dropped by how bright it is in channel 2
+// (its own measured pixel values), e.g. keep only foci with Mean intensity >= intensityMin.
 // No files are written. You pick ch00 and ch02. Nuclear threshold = automatic Otsu.
-// Output: "Results" window (one row per focus) + "YH2AX_Summary" window + Log.
+// Output: "Results" window (kept foci only) + "YH2AX_Summary" window + Log.
 //
 // ---- SETTINGS: edit these numbers, then Run ----
-// Area filter for foci, in the image's calibrated units (um^2 if the image has a scale, pixels if not).
-// areaMax = 0 means no upper limit.
+// Pixel intensity used to DETECT foci in channel 2. detectUpper = 0 means the maximum for the image type.
+var detectLower = 40;
+var detectUpper = 0;
+// Size limit for detection (calibrated units; um^2 if the image has a scale, pixels if not).
 var areaMin = 0.01;
-var areaMax = 0;
-// YH2AX intensity threshold. intensityUpper = 0 means the maximum value for the image type.
-var intensityLower = 40;
-var intensityUpper = 0;
+// Which brightness measurement of each focus to filter on:
+//   "Mean" (average pixel value), "Max" (brightest pixel), "IntDen" or "RawIntDen" (total signal)
+var intensityStat = "Mean";
+// Keep foci whose value is >= intensityMin and <= intensityMax. intensityMax = 0 means no upper limit.
+var intensityMin = 0;
+var intensityMax = 0;
 
 macro "YH2AX Intensity Threshold" {
 
@@ -46,16 +52,19 @@ macro "YH2AX Intensity Threshold" {
     imageCalculator("Multiply create stack", yh2axStack, nuclearMask);
     maskedStack = getTitle();
 
-    // YH2AX intensity threshold from the SETTINGS at the top
+    // Foci detection threshold from the SETTINGS at the top
     selectWindow(maskedStack);
-    fociLower = intensityLower;
+    fociLower = detectLower;
     bd = bitDepth();
-    if (intensityUpper > 0)
-        fociUpper = intensityUpper;
+    if (detectUpper > 0)
+        fociUpper = detectUpper;
     else if (bd == 32)
         fociUpper = 1e30;
     else
         fociUpper = pow(2, bd) - 1;
+
+    if (intensityStat != "Mean" && intensityStat != "Max" && intensityStat != "IntDen" && intensityStat != "RawIntDen")
+        exit("intensityStat must be \"Mean\", \"Max\", \"IntDen\" or \"RawIntDen\".");
 
     // ----- make a binary copy and measure every focus on every slice -----
     run("Duplicate...", "title=YH2AX_binary duplicate");
@@ -66,16 +75,40 @@ macro "YH2AX Intensity Threshold" {
     run("Set Measurements...",
         "area mean min integrated redirect=[" + yh2axStack + "] decimal=3");
     run("Clear Results");
-    areaMaxText = "Infinity";
-    if (areaMax > 0)
-        areaMaxText = "" + areaMax;
-    run("Analyze Particles...", "size=" + areaMin + "-" + areaMaxText + " display clear stack");
+    run("Analyze Particles...", "size=" + areaMin + "-Infinity display clear stack");
 
-    // ----- averages over the stack -----
-    total = nResults;
+    // ----- keep only foci that pass the intensity filter -----
+    detected = nResults;
+    aArea = newArray(detected);  aMean = newArray(detected);  aMin = newArray(detected);
+    aMax  = newArray(detected);  aInt  = newArray(detected);  aRaw = newArray(detected);
+    kept = 0;
     sumArea = 0;
-    for (k = 0; k < total; k++)
-        sumArea += getResult("Area", k);
+    for (k = 0; k < detected; k++) {
+        v = getResult(intensityStat, k);
+        if (v >= intensityMin && (intensityMax == 0 || v <= intensityMax)) {
+            aArea[kept] = getResult("Area", k);
+            aMean[kept] = getResult("Mean", k);
+            aMin[kept]  = getResult("Min", k);
+            aMax[kept]  = getResult("Max", k);
+            aInt[kept]  = getResult("IntDen", k);
+            aRaw[kept]  = getResult("RawIntDen", k);
+            sumArea += aArea[kept];
+            kept++;
+        }
+    }
+    run("Clear Results");
+    for (k = 0; k < kept; k++) {
+        setResult("Area", k, aArea[k]);
+        setResult("Mean", k, aMean[k]);
+        setResult("Min", k, aMin[k]);
+        setResult("Max", k, aMax[k]);
+        setResult("IntDen", k, aInt[k]);
+        setResult("RawIntDen", k, aRaw[k]);
+    }
+    updateResults();
+
+    // ----- averages over the stack (kept foci only) -----
+    total = kept;
     meanCount = total / n;
     meanArea  = sumArea / n;
 
@@ -85,15 +118,17 @@ macro "YH2AX Intensity Threshold" {
     Table.set("Nuclear threshold upper", 0, nucUpper);
     Table.set("YH2AX threshold lower", 0, fociLower);
     Table.set("YH2AX threshold upper", 0, fociUpper);
-    Table.set("Foci area min", 0, areaMin);
-    Table.set("Foci area max", 0, areaMax);
+    Table.set("Foci intensity statistic", 0, intensityStat);
+    Table.set("Foci intensity min", 0, intensityMin);
+    Table.set("Foci intensity max", 0, intensityMax);
+    Table.set("Foci detected before filter", 0, detected);
     Table.set("Slices analysed", 0, n);
     Table.set("Mean foci count per slice", 0, meanCount);
     Table.set("Mean foci area per slice", 0, meanArea);
     Table.update("YH2AX_Summary");
 
-    print("Image\tNuclear threshold lower\tNuclear threshold upper\tYH2AX threshold lower\tYH2AX threshold upper\tFoci area min\tFoci area max\tSlices analysed\tMean foci count per slice\tMean foci area per slice");
+    print("Image\tNuclear threshold lower\tNuclear threshold upper\tYH2AX threshold lower\tYH2AX threshold upper\tFoci intensity statistic\tFoci intensity min\tFoci intensity max\tFoci detected before filter\tSlices analysed\tMean foci count per slice\tMean foci area per slice");
     print(imageName + "\t" + nucLower + "\t" + nucUpper + "\t" + fociLower + "\t"
-          + fociUpper + "\t" + areaMin + "\t" + areaMax + "\t" + n + "\t" + meanCount + "\t" + meanArea);
-    print("DONE: " + total + " foci in " + n + " slices.");
+          + fociUpper + "\t" + intensityStat + "\t" + intensityMin + "\t" + intensityMax + "\t" + detected + "\t" + n + "\t" + meanCount + "\t" + meanArea);
+    print("DONE: kept " + total + " of " + detected + " foci in " + n + " slices.");
 }

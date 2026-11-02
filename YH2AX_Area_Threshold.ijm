@@ -7,9 +7,9 @@
 // areaMax = 0 means no upper limit.
 var areaMin = 0.01;
 var areaMax = 0.4;
-// YH2AX intensity threshold. intensityUpper = 0 means the maximum value for the image type.
-var intensityLower = 40;
-var intensityUpper = 0;
+// Pixel intensity used to DETECT foci in channel 2. detectUpper = 0 means the maximum for the image type.
+var detectLower = 40;
+var detectUpper = 0;
 
 macro "YH2AX Area Threshold" {
 
@@ -46,12 +46,12 @@ macro "YH2AX Area Threshold" {
     imageCalculator("Multiply create stack", yh2axStack, nuclearMask);
     maskedStack = getTitle();
 
-    // YH2AX intensity threshold from the SETTINGS at the top
+    // Foci detection threshold from the SETTINGS at the top
     selectWindow(maskedStack);
-    fociLower = intensityLower;
+    fociLower = detectLower;
     bd = bitDepth();
-    if (intensityUpper > 0)
-        fociUpper = intensityUpper;
+    if (detectUpper > 0)
+        fociUpper = detectUpper;
     else if (bd == 32)
         fociUpper = 1e30;
     else
